@@ -24,9 +24,9 @@ class Warehouse:
         self.shortage_cost: float = parameters.shortage_cost
         self.products: list[Product] = products
         self.inventory_level: float = 60
-        self.inventory_check_interval: float = 1
-        self.s_max: float = 40
-        self.s_min: float = 20
+        self.inventory_check_interval: float = inventory_check_interval
+        self.s_max: float = s_max
+        self.s_min: float = s_min
     
         self.total_order_cost = 0
         self.inventory_history: dict[float, float] = defaultdict(float)
@@ -34,5 +34,4 @@ class Warehouse:
         self.it: list[tuple[float, float]] = [(0, inventory_level)]
         self.last_inventory_level: float = inventory_level
         self.last_inventory_level_timestamp: float = 0.0
-        
-        
+
