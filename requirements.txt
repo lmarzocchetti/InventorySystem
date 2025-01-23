@@ -1,4 +1,4 @@
 # python=3.12.6
 simpy=4.1.1
-matplotlib=3.9.2
-torch=2.4.1
+matplotlib=3.10.0
+torch=2.5.1
