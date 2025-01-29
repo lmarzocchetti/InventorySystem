@@ -15,7 +15,7 @@ def main():
     )
     env.run(until=24*50) # 50 giorni
 
-    print(warehouse.total_cost)
+    warehouse.plot_inventory_level()
 
 
 if __name__ == "__main__":

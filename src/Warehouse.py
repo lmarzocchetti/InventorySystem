@@ -4,6 +4,9 @@ import statistics
 
 from collections import defaultdict
 
+import numpy as np
+import matplotlib.pyplot as plt
+
 from .utils import SimulationParaters, Product
 
 # TODO: inventory level separated by product, so not assuming that every product occupy 1 slot
@@ -108,7 +111,6 @@ class Warehouse:
         self.total_order_cost += (self.order_setup_cost + self.order_incremental_cost * z)
         lead_time = random.uniform(product.lead_time_min, product.lead_time_max)
         yield self.env.timeout(lead_time)
-        # self.current_inventory_level_products[idx] += z
         self.inventory_level_setter(idx, "add", z)
 
     def demand_generator(self):
@@ -120,8 +122,19 @@ class Warehouse:
                 demand_size = random.choices(pop, weights=weights, k=1)[0]
 
                 yield self.env.timeout(demand_inter_arrival_time)
-                # self.current_inventory_level_products[idx] -= demand_size
                 self.inventory_level_setter(idx, "sub", demand_size)
 
-    # TODO: Plot function
-                
+    def plot_inventory_level(self):
+        plt.title("I(t): Inventory level over time")
+        plt.xlabel('Simulation Time')
+        plt.ylabel('Inventory Length')
+        
+        for idx_prod, product in enumerate(self.products):
+            color = np.random.rand(3,)
+            x, y = zip(*self.it[idx_prod])
+            plt.step(x, y, where='post', color=color, label=product.name)
+            plt.fill_between(x, y, step='post', alpha=0.2, color=color)
+
+        plt.legend(loc='lower right')
+        plt.show()
+            
