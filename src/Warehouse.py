@@ -1,6 +1,5 @@
 import simpy
 import random
-import statistics
 
 from collections import defaultdict
 
@@ -46,16 +45,15 @@ class Warehouse:
         self.s_min: float = s_min
 
         # TODO: Try other alternative to this, or customizable by the user
-        # Initialize inventory levels per product at total_inventory_level_per_product / 2
-        self.current_inventory_level_products = [int(self.total_inventory_level_per_product/2) for i in range(len(self.products))]
+        # Initialize inventory levels per product at total_inventory_level_per_product
+        self.current_inventory_level_products = [int(self.total_inventory_level_per_product) for i in range(len(self.products))]
         assert len(self.current_inventory_level_products) == len(self.products)
-        print(self.current_inventory_level_products)
 
         self.total_order_cost = 0
         self.inventory_history: dict[int, dict[float, float]] = {idx:defaultdict(float) for idx in range(len(self.products))}
         
-        self.it: dict[int, list[tuple[int, int]]] = {idx:[(0, int(total_inventory_level_per_product/2))] for idx in range(len(self.products))}
-        self.last_inventory_level: dict[int, int] = {idx:int(total_inventory_level_per_product/2) for idx in range(len(self.products))}
+        self.it: dict[int, list[tuple[int, int]]] = {idx:[(0, int(total_inventory_level_per_product))] for idx in range(len(self.products))}
+        self.last_inventory_level: dict[int, int] = {idx:int(total_inventory_level_per_product) for idx in range(len(self.products))}
         self.last_inventory_level_timestamp: float = 0.0
 
         self.env.process(self.inventory_monitor())
