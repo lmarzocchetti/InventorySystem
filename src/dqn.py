@@ -6,15 +6,15 @@ import torch.nn as nn
 import torch.optim as optim
 
 class DQN(nn.Module):
-    def __init__(self, in_dim, out_dim):
+    def __init__(self, in_dim, out_dim, hidden_dim: int = 256):
         super().__init__()
         self.device = 'cpu'
         layers = [
-            nn.Linear(in_dim, 128).to(self.device),
+            nn.Linear(in_dim, hidden_dim).to(self.device),
             nn.ReLU().to(self.device),
-            nn.Linear(128, 128).to(self.device),
+            nn.Linear(hidden_dim, hidden_dim).to(self.device),
             nn.ReLU().to(self.device),
-            nn.Linear(128, out_dim).to(self.device),
+            nn.Linear(hidden_dim, out_dim).to(self.device),
         ]
         self.model = nn.Sequential(*layers).to(self.device)
     
@@ -41,7 +41,7 @@ class ReinforcementWarehouse:
         self.batch_size = 64
         self.epsilon_start = 0.9
         self.epsilon_end = 0.005
-        self.num_of_episodes = 100 # 50 days * 100
+        self.num_of_episodes = 1000 # 50 days * 100
         self.epsilon_decay = self.num_of_episodes * 10
         self.target_update = 10
 
@@ -56,7 +56,7 @@ class ReinforcementWarehouse:
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
     def calculate_epsilon(self, steps_done):
-        return self.epsilon_start + (self.epsilon_start - self.epsilon_end) * np.exp(-1. * steps_done / self.epsilon_decay)
+        return self.epsilon_end + (self.epsilon_start - self.epsilon_end) * np.exp(-1. * steps_done / self.epsilon_decay)
 
     def select_action(self, state, epsilon, action_space):
         """
@@ -70,7 +70,7 @@ class ReinforcementWarehouse:
             with torch.no_grad():
                 state = torch.FloatTensor(state).unsqueeze(0)
                 q_values: torch.Tensor = self.policy_net(state)
-                return q_values.cpu().clone().detach().numpy()
+                return q_values.cpu().squeeze().clone().detach().numpy()
 
     def optimize_model(self, batch, gamma):
         """
@@ -85,8 +85,10 @@ class ReinforcementWarehouse:
         next_states = torch.FloatTensor(next_states)
         dones = torch.FloatTensor(dones).unsqueeze(1)
         
-        q_values = self.policy_net(states).gather(1, actions)
-        next_q_values = self.target_net(next_states).max(1)[0].detach().unsqueeze(1)
+        q_values = self.policy_net(states)# .gather(1, actions)
+        # next_q_values = self.target_net(next_states).max(1)[0].detach().unsqueeze(1)
+        next_q_values = self.target_net(next_states)
+        # print(f"{next_q_values.shape}")
         target_q_values = rewards + (gamma * next_q_values * (1 - dones))
         
         loss = nn.functional.mse_loss(q_values, target_q_values)

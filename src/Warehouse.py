@@ -1,5 +1,6 @@
 import simpy
 import random
+import math
 
 from collections import defaultdict
 
@@ -141,6 +142,13 @@ class Warehouse:
                 epsilon = self.reinforcement_learning.calculate_epsilon(self.reinforcement_learning.steps_done)
                 self.reinforcement_learning.epsilon = epsilon
                 action = self.reinforcement_learning.select_action(self.reinforcement_learning.state, epsilon, act) # TODO: Action space is missing
+                if type(action) == np.ndarray:
+                    action_0 = max(0, int(math.ceil(action[0])))
+                    action_1 = max(0, int(math.ceil(action[1])))
+                    print(f"act1: {action_0}--act2: {action_1}")
+                    action = np.ndarray((2,), dtype=np.int32)
+                    action[0] = action_0 if action_0 <= self.total_inventory_level_per_product else self.total_inventory_level_per_product * 200
+                    action[1] = action_0 if action_1 <= self.total_inventory_level_per_product else self.total_inventory_level_per_product * 200
                 self.total_order_cost += (self.order_setup_cost + self.order_incremental_cost * action[0])
                 self.total_order_cost += (self.order_setup_cost + self.order_incremental_cost * action[1])
                 
@@ -151,6 +159,7 @@ class Warehouse:
                 # holding cost # TODO: Controllare
                 reward += (action[0] + action[1]) * self.holding_cost * (- self.env.now - self.last_inventory_level_timestamp)
                 # stockout cost
+                reward = -reward
 
                 assert(len(self.last_day_order_request) == 2)
                 state = np.array((self.current_inventory_level_products[0], self.current_inventory_level_products[1], sum(self.pending_orders[0].values()), sum(self.pending_orders[1].values()), self.last_day_order_request[0], self.last_day_order_request[1]))

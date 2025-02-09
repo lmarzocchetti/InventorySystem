@@ -55,6 +55,7 @@ def main_rl():
         while True:
             reinforcement_class.steps_done = steps_done
             reinforcement_class.state = state
+            print(f"EPSILON: {reinforcement_class.epsilon}")
             # epsilon = reinforcement_class.calculate_epsilon(steps_done)
             # action = reinforcement_class.select_action(state, epsilon, env.action_space)
             env.run(until=24*day + 1)
@@ -82,7 +83,17 @@ def main_rl():
         returns.append(total_reward)
         epsilons.append(reinforcement_class.epsilon)
 
-    print("END")
+    plt.plot(returns)
+    plt.xlabel('Episode')
+    plt.ylabel('Episode Return')
+    plt.title('DQN on CartPole-v1')
+    plt.show()
+
+    # plt.plot(epsilons)
+    # plt.xlabel('Episode')
+    # plt.ylabel('Episode final epsilon value')
+    # plt.title('DQN on CartPole-v1')
+    # plt.show()
 
 def main():
     set_seed()
