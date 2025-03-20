@@ -84,10 +84,12 @@ class ReinforcementWarehouse:
         rewards = torch.FloatTensor(rewards).unsqueeze(1)
         next_states = torch.FloatTensor(next_states)
         dones = torch.FloatTensor(dones).unsqueeze(1)
-        
-        q_values = self.policy_net(states)# .gather(1, actions)
-        # next_q_values = self.target_net(next_states).max(1)[0].detach().unsqueeze(1)
-        next_q_values = self.target_net(next_states)
+
+        print(f"Actions: {actions.shape}---States: {states.shape}")
+        q_values = self.policy_net(states).gather(1, actions)
+        # print(q_values)
+        next_q_values = self.target_net(next_states).max(1)[0].detach().unsqueeze(1)
+        # next_q_values = self.target_net(next_states)
         # print(f"{next_q_values.shape}")
         target_q_values = rewards + (gamma * next_q_values * (1 - dones))
         
