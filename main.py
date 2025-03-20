@@ -74,7 +74,7 @@ def main_rl():
             next_state, reward, done = agent.state, agent.reward, agent.done
             # print(f"DEBUG STATE: {next_state}")
             agent.memory.push(state, action[0], action[1], reward, next_state, done)
-            agent.train_step(batch_size=64)
+            agent.train_step(batch_size=128)
 
             state = next_state
             episode_reward += reward

@@ -9,7 +9,8 @@ EPSILON_START = 1.0
 EPSILON_END = 0.05
 EPSILON_DECAY = 10000
 TARGET_UPDATE = 100
-GAMMA = 0.99
+# GAMMA = 0.99
+GAMMA = 0.98
 
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
