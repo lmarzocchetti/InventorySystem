@@ -8,8 +8,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from .utils import SimulationParaters, Product
-from .dqn import ReinforcementWarehouse
 from .actor_critic import DDPG
+from .dqn import DQNAgent
 
 def number():
     num = 1000
@@ -21,8 +21,8 @@ num = number()
 
 def action_spc():
     while True:
-        prod_0 = random.randint(0, 60)
-        prod_1 = random.randint(0, 60)
+        prod_0 = random.randint(0, 200)
+        prod_1 = random.randint(0, 200)
         yield prod_0, prod_1
 
 act = action_spc()
@@ -38,7 +38,7 @@ class Warehouse:
         total_inventory_level_per_product: float = 60,
         inventory_check_interval: float = 24, # FIXME: 24 ore
         s_min_max: list[tuple[int, int]] = [],
-        reinforcement_learning: None | DDPG = None
+        reinforcement_learning: None | DDPG | DQNAgent = None
     ) -> None:
         """Warehouse that stores a fixed amount of products
 
@@ -140,8 +140,8 @@ class Warehouse:
                         self.env.process(self.order_up_to_s_max(product, idx))
             else:
                 action = self.reinforcement_learning.action
-                self.total_order_cost += (self.order_setup_cost + self.order_incremental_cost * action[0])
-                self.total_order_cost += (self.order_setup_cost + self.order_incremental_cost * action[1])
+                # self.total_order_cost += (self.order_setup_cost + self.order_incremental_cost * action[0])
+                # self.total_order_cost += (self.order_setup_cost + self.order_incremental_cost * action[1])
                 
                 # order cost
                 # reward = (- (self.order_setup_cost + self.order_incremental_cost * action[0])) - ((self.order_setup_cost + self.order_incremental_cost * action[1]))
@@ -160,26 +160,30 @@ class Warehouse:
                 inventory_2 = max(0, self.current_inventory_level_products[1] - self.last_day_order_request[1])
                 unmet_demand_1 = max(0, self.last_day_order_request[0] - self.current_inventory_level_products[0])
                 unmet_demand_2 = max(0, self.last_day_order_request[1] - self.current_inventory_level_products[1])
-                holding_cost = 0.1 * (inventory_1 + inventory_2) # euro / prodotto / giorno
+                # holding_cost = 10 * (inventory_1 + inventory_2)
+                holding_cost = 0.1 * (((inventory_1 + inventory_2) + (inventory_1 + action[0] + inventory_2 + action[1])) / 2)  # euro / prodotto / giorno
                 # Usare la media dei prodotti da inizio giorno e fine giorno
                 stockout_cost = 10 * (unmet_demand_1 + unmet_demand_2)  # Penalità alta per stockout
-                
                 # TODO: ORdinare solo se action sono MAGGIORE DI 0
                 order_cost = 0
                 for idx, act in enumerate(action):
                     if act > 0:
                         order_cost += self.order_setup_cost + self.order_incremental_cost * act
+                self.total_order_cost += order_cost
+                
+                # print(f"UNMENR: {unmet_demand_1}---{unmet_demand_2}")
+                # print(f"CURRENT INVENTORY: {self.current_inventory_level_products}---ACTION: {action}---ORDER COST: {order_cost}---HOLDING COST: {holding_cost}---STOCKOUT COST: {stockout_cost}")
                 # order_cost = (self.order_setup_cost + self.order_incremental_cost * action[0]) + (self.order_setup_cost + self.order_incremental_cost * action[1])
                 reward = - (holding_cost + stockout_cost + order_cost)
-
+                
                 # print(f"ACTIONS: {action}")
                 # print(f"REWARD: {reward}")
 
                 # Dentro YourInventoryEnv.step():
-                max_consecutive_stockout_days = 5  # Soglia massima di stockout consecutivi
-                min_safe_stock = 10  # Soglia minima di inventario
+                max_consecutive_stockout_days = 10  # Soglia massima di stockout consecutivi
+                # min_safe_stock = 40  # Soglia minima di inventario
 
-                # Controlla stockout consecutivi
+                # # Controlla stockout consecutivi
                 if unmet_demand_1 > 0 or unmet_demand_2 > 0:
                     self.consecutive_stockout_days += 1
                 else:
@@ -189,25 +193,33 @@ class Warehouse:
                 # TODO: RIATTIVARE NEL CASO
                 if (
                     self.consecutive_stockout_days >= max_consecutive_stockout_days  # Troppi stockout di fila
-                    or inventory_1 < min_safe_stock  # Inventario troppo basso
-                    or inventory_2 < min_safe_stock
+                    # or inventory_1 < min_safe_stock  # Inventario troppo basso
+                    # or inventory_2 < min_safe_stock
                 ):
+                    # print("Troppi stockout di fila o inventario troppo basso!")
                     self.reinforcement_learning.done = True
-                    reward -= 10000
+                    reward -= 999999
                 else:
                     self.reinforcement_learning.done = False
 
-                # if self.current_inventory_level_products[0] > 60 or self.current_inventory_level_products[1] > 60:
+                # if self.current_inventory_level_products[0] + action[0] > 200 or self.current_inventory_level_products[1] + action[1] > 200:
+                #     # print("Superato limite inventario")
                 #     self.reinforcement_learning.done = True
                 #     reward -= 20000
 
-                self.reinforcement_learning.reward = reward
-                state = np.array((self.current_inventory_level_products[0], self.current_inventory_level_products[1], sum(self.pending_orders[0].values()), sum(self.pending_orders[1].values()), self.last_day_order_request[0], self.last_day_order_request[1]))
-                self.reinforcement_learning.state = state
+                # self.reinforcement_learning.reward = reward
+                # state = np.array((self.current_inventory_level_products[0], self.current_inventory_level_products[1], sum(self.pending_orders[0].values()), sum(self.pending_orders[1].values()), self.last_day_order_request[0], self.last_day_order_request[1]))
+                # # print(f"DEBUG: {self.current_inventory_level_products[0]}---{self.current_inventory_level_products[1]}")
+                # self.reinforcement_learning.state = state
                 if not self.can_store_item_quantity(action):
                     self.reinforcement_learning.done = True
-                    reward -= 10000
+                    reward -= 999999
                 # Aggiungere un reward molto negativo se esco prima
+                
+                self.reinforcement_learning.reward = reward
+                state = np.array((self.current_inventory_level_products[0], self.current_inventory_level_products[1], sum(self.pending_orders[0].values()), sum(self.pending_orders[1].values()), self.last_day_order_request[0], self.last_day_order_request[1]))
+                # print(f"DEBUG: {self.current_inventory_level_products[0]}---{self.current_inventory_level_products[1]}")
+                self.reinforcement_learning.state = state
 
                 self.last_day_order_request = [0, 0]
 

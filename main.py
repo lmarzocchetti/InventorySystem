@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 import simulation_data as sim_data
 from src.warehouse import Warehouse
-from src.dqn import ReinforcementWarehouse
+from src.dqn import DQNAgent
 import src.actor_critic as ac
 
 def set_seed(seed = 42):
@@ -37,80 +37,18 @@ def main_rl():
     # vincoli ordine non puo superare capacita massima: I1 + I2 + O1 + O2 + r1 + r2 <= C
     # r1 e r2 appartengono a {0, 1, ..., M} M quantita massima ordinabile
     out_dim: int = 2
+    max_action: int = 200
+    
+    num_of_days_for_episode = 10000
+    num_episodes = 100000
 
-    reinforcement_class = ReinforcementWarehouse(in_dim, out_dim)
+    agent: DQNAgent = DQNAgent(in_dim, max_action+1)
 
     steps_done = 0
-
-    returns = []
-    epsilons = []
-    for num_episode in tqdm.tqdm(range(reinforcement_class.num_of_episodes)):
-        env = simpy.Environment()
-        warehouse = Warehouse(
-            env,
-            sim_data.simulation_parameters,
-            [sim_data.first_product, sim_data.second_product],
-            reinforcement_learning=reinforcement_class
-        )
-        state = (60, 60, 0, 0, 0, 0)
-        total_reward = 0
-        day = 1
-        
-        while True:
-            reinforcement_class.steps_done = steps_done
-            reinforcement_class.state = state
-            print(f"EPSILON: {reinforcement_class.epsilon}")
-            # epsilon = reinforcement_class.calculate_epsilon(steps_done)
-            # action = reinforcement_class.select_action(state, epsilon, env.action_space)
-            env.run(until=24*day + 1)
-
-            action = reinforcement_class.action
-            next_state, reward, done, truncated = reinforcement_class.return_value
-            total_reward += reward
-
-            reinforcement_class.memory.append((state, action, reward, next_state, done))
-            state = next_state
-
-            if len(reinforcement_class.memory) >= reinforcement_class.batch_size:
-                batch = random.sample(reinforcement_class.memory, reinforcement_class.batch_size)
-                reinforcement_class.optimize_model(batch, 0.99)
-
-            if done or truncated:
-                break
-
-            steps_done +=1
-            day += 1
-        
-        if num_episode % reinforcement_class.target_update == 0:
-            reinforcement_class.load_new_dict()
-        
-        returns.append(total_reward)
-        epsilons.append(reinforcement_class.epsilon)
-
-    plt.plot(returns)
-    plt.xlabel('Episode')
-    plt.ylabel('Episode Return')
-    plt.title('DQN on CartPole-v1')
-    plt.show()
-
-    # plt.plot(epsilons)
-    # plt.xlabel('Episode')
-    # plt.ylabel('Episode final epsilon value')
-    # plt.title('DQN on CartPole-v1')
-    # plt.show()
-
-def main_actor_critic():
-    set_seed()
-    state_dim: int = 6
-    action_dim: int = 2
-    max_action: int = 200
-    num_of_days_for_episode = 50000
-
-    agent = ac.DDPG(state_dim, action_dim, max_action)
-    # Fare un training su numero di timesteps
-    num_episodes = 20000
     day = 1
+    epsilons = []
     returns = []
+    returns_complete = []
     total_costs = []
     for episode in tqdm.tqdm(range(num_episodes)):
         state = (max_action, max_action, 0, 0, 0, 0)
@@ -128,15 +66,15 @@ def main_actor_critic():
             reinforcement_learning=agent
         )
         episode_reward = 0
-
+        # print(f"---------------------------------START EPISODE {episode}-------------------------------------")
         for t in range(num_of_days_for_episode):
-            action = agent.select_action(state, noise_scale=0.05)
+            action = agent.select_action(state)
             agent.action = action
             env.run(until=24*day + 1)
             next_state, reward, done = agent.state, agent.reward, agent.done
-
-            agent.replay_buffer.add(state, action, reward, next_state, done)
-            agent.train(batch_size=64)
+            # print(f"DEBUG STATE: {next_state}")
+            agent.memory.push(state, action[0], action[1], reward, next_state, done)
+            agent.train_step(batch_size=64)
 
             state = next_state
             episode_reward += reward
@@ -146,8 +84,78 @@ def main_actor_critic():
 
             day += 1
         
+        # print("--------------------------------------END EPISODE---------------------------------------")
         # print(f"Episode reward: {episode_reward}")
+        if not agent.done:
+            returns_complete.append(episode_reward)
+        returns.append(episode_reward)
+        total_costs.append(warehouse.total_cost)
+    
+    print(f"RETURNS NOT TRUNCATED: {returns_complete.__len__()}")
+    plt.plot(returns)
+    plt.xlabel('Episode')
+    plt.ylabel('Episode Return')
+    plt.title('DQN on CartPole-v1')
+    plt.show()
 
+    # plt.plot(epsilons)
+    # plt.xlabel('Episode')
+    # plt.ylabel('Episode final epsilon value')
+    # plt.title('DQN on CartPole-v1')
+    # plt.show()
+
+def main_actor_critic():
+    set_seed(12313)
+    state_dim: int = 6
+    action_dim: int = 2
+    max_action: int = 200
+    num_of_days_for_episode = 10000
+
+    agent = ac.DDPG(state_dim, action_dim, max_action)
+    # Fare un training su numero di timesteps
+    num_episodes = 20000
+    day = 1
+    returns = []
+    returns_complete = []
+    total_costs = []
+    for episode in tqdm.tqdm(range(num_episodes)):
+        state = (max_action, max_action, 0, 0, 0, 0)
+        agent.state = None
+        agent.reward = None
+        agent.action = None
+        agent.done = False
+
+        env = simpy.Environment()
+        warehouse = Warehouse(
+            env,
+            sim_data.simulation_parameters,
+            total_inventory_level_per_product=max_action,
+            products=[sim_data.first_product, sim_data.second_product],
+            reinforcement_learning=agent
+        )
+        episode_reward = 0
+        # print(f"---------------------------------START EPISODE {episode}-------------------------------------")
+        for t in range(num_of_days_for_episode):
+            action = agent.select_action(state, noise_scale=0.1)
+            agent.action = action
+            env.run(until=24*day + 1)
+            next_state, reward, done = agent.state, agent.reward, agent.done
+            # print(f"DEBUG STATE: {next_state}")
+            agent.replay_buffer.add(state, action, reward, next_state, done)
+            agent.train(batch_size=128)
+
+            state = next_state
+            episode_reward += reward
+
+            if done:
+                break
+
+            day += 1
+        
+        # print("--------------------------------------END EPISODE---------------------------------------")
+        # print(f"Episode reward: {episode_reward}")
+        if not agent.done:
+            returns_complete.append(episode_reward)
         returns.append(episode_reward)
         total_costs.append(warehouse.total_cost)
     
@@ -208,5 +216,5 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    # main_rl()
-    main_actor_critic()
+    main_rl()
+    # main_actor_critic()

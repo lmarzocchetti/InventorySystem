@@ -1,100 +1,114 @@
+import random
 from collections import deque
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
+EPSILON_START = 1.0
+EPSILON_END = 0.05
+EPSILON_DECAY = 10000
+TARGET_UPDATE = 100
+GAMMA = 0.99
+
 class DQN(nn.Module):
-    def __init__(self, in_dim, out_dim, hidden_dim: int = 256):
-        super().__init__()
-        self.device = 'cpu'
-        layers = [
-            nn.Linear(in_dim, hidden_dim).to(self.device),
-            nn.ReLU().to(self.device),
-            nn.Linear(hidden_dim, hidden_dim).to(self.device),
-            nn.ReLU().to(self.device),
-            nn.Linear(hidden_dim, out_dim).to(self.device),
-        ]
-        self.model = nn.Sequential(*layers).to(self.device)
-    
+    def __init__(self, input_dim, output_dim):
+        super(DQN, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, output_dim)  # Output = 201 azioni (0-200)
+        )
+
     def forward(self, x):
-        x = x.to(self.device)
-        action_values = self.model(x)
-        return action_values
+        return self.model(x)
 
-class ActionSpace():
-    def __init__(self):
-        pass
+# Replay Buffer
+class ReplayBuffer:
+    def __init__(self, capacity):
+        self.buffer = deque(maxlen=capacity)
 
-class ReinforcementWarehouse:
-    def __init__(self, in_dim: int = 6, out_dim: int = 2):
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.policy_net = DQN(in_dim, out_dim)
-        self.target_net = DQN(in_dim, out_dim)
-        self.target_net.load_state_dict(self.policy_net.state_dict())
-        self.target_net.eval()
+    def push(self, state, action1, action2, reward, next_state, done):
+        self.buffer.append((state, action1, action2, reward, next_state, done))
 
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr = 0.01)
-        self.memory = deque(maxlen=10_000)
-        self.batch_size = 64
-        self.epsilon_start = 0.9
-        self.epsilon_end = 0.005
-        self.num_of_episodes = 1000 # 50 days * 100
-        self.epsilon_decay = self.num_of_episodes * 10
-        self.target_update = 10
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, batch_size)
+        states, actions1, actions2, rewards, next_states, dones = zip(*batch)
+        return (torch.FloatTensor(states),
+                torch.LongTensor(actions1),
+                torch.LongTensor(actions2),
+                torch.FloatTensor(rewards),
+                torch.FloatTensor(next_states),
+                torch.FloatTensor(dones))
 
-        self.steps_done = 0
-        self.state = (60, 60, 0, 0, 0, 0)
-        self.action = None
+    def __len__(self):
+        return len(self.buffer)
 
-        self.epsilon = None
-        self.return_value: tuple[np.ndarray, float, bool, bool] = None
-    
-    def load_new_dict(self):
-        self.target_net.load_state_dict(self.policy_net.state_dict())
+# Agente DQN con due reti separate
+class DQNAgent:
+    def __init__(self, state_dim, action_dim, lr = 0.003, memory_size = 10000):
+        self.dqn1 = DQN(state_dim, action_dim)  # Rete per il primo valore
+        self.dqn2 = DQN(state_dim, action_dim)  # Rete per il secondo valore
+        self.target_dqn1 = DQN(state_dim, action_dim)
+        self.target_dqn2 = DQN(state_dim, action_dim)
+        self.target_dqn1.load_state_dict(self.dqn1.state_dict())
+        self.target_dqn2.load_state_dict(self.dqn2.state_dict())
 
-    def calculate_epsilon(self, steps_done):
-        return self.epsilon_end + (self.epsilon_start - self.epsilon_end) * np.exp(-1. * steps_done / self.epsilon_decay)
+        self.optimizer1 = optim.Adam(self.dqn1.parameters(), lr=lr)
+        self.optimizer2 = optim.Adam(self.dqn2.parameters(), lr=lr)
 
-    def select_action(self, state, epsilon, action_space):
-        """
-        Function to select an action based on an epsilon-greedy policy
-        """
+        self.memory = ReplayBuffer(memory_size)
+        self.epsilon = EPSILON_START
+        self.steps = 0
 
-        if np.random.random() < epsilon:
-            # return action_space.sample()
-            return next(action_space)
+    def select_action(self, state):
+        if random.random() < self.epsilon:
+            return random.randint(0, 200), random.randint(0, 200)
         else:
+            state = torch.FloatTensor(state).unsqueeze(0)
             with torch.no_grad():
-                state = torch.FloatTensor(state).unsqueeze(0)
-                q_values: torch.Tensor = self.policy_net(state)
-                return q_values.cpu().squeeze().clone().detach().numpy()
+                q_values1 = self.dqn1(state)
+                q_values2 = self.dqn2(state)
+            return torch.argmax(q_values1).item(), torch.argmax(q_values2).item()
 
-    def optimize_model(self, batch, gamma):
-        """
-        Function to update the Q-values using the Bellman equation
-        """
+    def train_step(self, batch_size = 64):
+        if len(self.memory) < batch_size:
+            return
 
-        states, actions, rewards, next_states, dones = zip(*batch)
-        
-        states = torch.FloatTensor(states)
-        actions = torch.LongTensor(actions).unsqueeze(1)
-        rewards = torch.FloatTensor(rewards).unsqueeze(1)
-        next_states = torch.FloatTensor(next_states)
-        dones = torch.FloatTensor(dones).unsqueeze(1)
+        # Campiona batch dal replay buffer
+        states, actions1, actions2, rewards, next_states, dones = self.memory.sample(batch_size)
 
-        print(f"Actions: {actions.shape}---States: {states.shape}")
-        q_values = self.policy_net(states).gather(1, actions)
-        # print(q_values)
-        next_q_values = self.target_net(next_states).max(1)[0].detach().unsqueeze(1)
-        # next_q_values = self.target_net(next_states)
-        # print(f"{next_q_values.shape}")
-        target_q_values = rewards + (gamma * next_q_values * (1 - dones))
-        
-        loss = nn.functional.mse_loss(q_values, target_q_values)
-        
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+        # Predizioni Q attuali
+        q_values1 = self.dqn1(states).gather(1, actions1.unsqueeze(1)).squeeze(1)
+        q_values2 = self.dqn2(states).gather(1, actions2.unsqueeze(1)).squeeze(1)
+
+        # Q target
+        with torch.no_grad():
+            next_q_values1 = self.target_dqn1(next_states).max(1)[0]
+            next_q_values2 = self.target_dqn2(next_states).max(1)[0]
+            targets1 = rewards + GAMMA * next_q_values1 * (1 - dones)
+            targets2 = rewards + GAMMA * next_q_values2 * (1 - dones)
+
+        # Calcola la loss
+        loss1 = nn.MSELoss()(q_values1, targets1)
+        loss2 = nn.MSELoss()(q_values2, targets2)
+
+        # Aggiorna i pesi
+        self.optimizer1.zero_grad()
+        loss1.backward()
+        self.optimizer1.step()
+
+        self.optimizer2.zero_grad()
+        loss2.backward()
+        self.optimizer2.step()
+
+        # Decadimento epsilon
+        self.steps += 1
+        self.epsilon = max(EPSILON_END, EPSILON_START - (self.steps / EPSILON_DECAY))
+
+        # Aggiornamento rete target
+        if self.steps % TARGET_UPDATE == 0:
+            self.target_dqn1.load_state_dict(self.dqn1.state_dict())
+            self.target_dqn2.load_state_dict(self.dqn2.state_dict())

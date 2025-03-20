@@ -59,10 +59,10 @@ def init_weights(m):
 
 class DDPG:
     def __init__(self, state_dim, action_dim, max_action, gamma=0.99, tau=0.001, lr=1e-4):
-        self.actor = Actor(state_dim, action_dim, max_action)
-        self.critic = Critic(state_dim, action_dim)
-        self.actor_target = Actor(state_dim, action_dim, max_action)
-        self.critic_target = Critic(state_dim, action_dim)
+        self.actor = Actor(state_dim, action_dim, max_action, hidden_dim = 128)
+        self.critic = Critic(state_dim, action_dim, hidden_dim = 128)
+        self.actor_target = Actor(state_dim, action_dim, max_action, hidden_dim = 128)
+        self.critic_target = Critic(state_dim, action_dim, hidden_dim = 128)
         self.max_action = max_action
 
         self.actor_target.load_state_dict(self.actor.state_dict())
@@ -81,7 +81,7 @@ class DDPG:
         self.reward = None
         self.done = False
 
-        # self.actor.apply(init_weights)
+        self.actor.apply(init_weights)
 
     def select_action(self, state, noise_scale=0.1):
         state = torch.FloatTensor(state).unsqueeze(0)
