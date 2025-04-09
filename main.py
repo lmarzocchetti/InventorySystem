@@ -39,8 +39,8 @@ def main_rl():
     out_dim: int = 2
     max_action: int = 200
     
-    num_of_days_for_episode = 10000
-    num_episodes = 100000
+    num_of_days_for_episode = 100_000
+    num_episodes = 1_000_000
 
     agent: DQNAgent = DQNAgent(in_dim, max_action+1)
 
@@ -90,6 +90,9 @@ def main_rl():
             returns_complete.append(episode_reward)
         returns.append(episode_reward)
         total_costs.append(warehouse.total_cost)
+
+        if episode % 100_000 == 0 and episode != 0:
+            agent.save_model(f'model_{episode}.pt')
     
     print(f"RETURNS NOT TRUNCATED: {returns_complete.__len__()}")
     plt.plot(returns)
@@ -103,6 +106,67 @@ def main_rl():
     # plt.ylabel('Episode final epsilon value')
     # plt.title('DQN on CartPole-v1')
     # plt.show()
+
+def main_rl_test():
+    set_seed()
+
+    # TODO: Numero giorni rimanenti per la consegna degli ordini
+    # I1, I2, O1, O2, D1, D2.
+    # Stock attuali, Ordini pendenti, Domanda giorno precedente
+    in_dim: int = 6
+    # POsso normalizzare gli stock tra 0 e 1 
+    # posso normalizzare anche il reward con un massimo empirico
+
+    # r1, r2
+    # quantita ordinate prodotto 1 e 2
+    # vincoli ordine non puo superare capacita massima: I1 + I2 + O1 + O2 + r1 + r2 <= C
+    # r1 e r2 appartengono a {0, 1, ..., M} M quantita massima ordinabile
+    out_dim: int = 2
+    max_action: int = 200
+    
+    num_of_days_for_episode = 50
+    num_episodes = 60
+
+    # agent: DQNAgent = DQNAgent(in_dim, max_action+1)
+    # agent.load_model("model_500000.pt")
+
+    day = 1
+    total_costs = []
+    for _ in tqdm.tqdm(range(num_episodes)):
+        agent: DQNAgent = DQNAgent(in_dim, max_action+1)
+        agent.load_model("model_300000.pt")
+        state = (max_action, max_action, 0, 0, 0, 0)
+        agent.state = None
+        agent.reward = None
+        agent.action = None
+        agent.done = False
+
+        env = simpy.Environment()
+        warehouse = Warehouse(
+            env,
+            sim_data.simulation_parameters,
+            total_inventory_level_per_product=max_action,
+            products=[sim_data.first_product, sim_data.second_product],
+            reinforcement_learning=agent
+        )
+        for t in range(num_of_days_for_episode):
+            action = agent.select_action(state)
+            agent.action = action
+            env.run(until=24*day + 1)
+            next_state = agent.state
+
+            state = next_state
+
+            day += 1
+        
+        total_costs.append(warehouse.total_cost)
+
+    print(f"mean total cost {statistics.mean(total_costs)}")
+    plt.plot(total_costs)
+    plt.xlabel('Episode')
+    plt.ylabel('Episode Return')
+    plt.title('DQN on CartPole-v1')
+    plt.show()
 
 def main_actor_critic():
     set_seed(12313)
@@ -216,5 +280,6 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    main_rl()
+    #main_rl()
+    main_rl_test()
     # main_actor_critic()

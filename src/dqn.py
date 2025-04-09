@@ -63,6 +63,25 @@ class DQNAgent:
         self.memory = ReplayBuffer(memory_size)
         self.epsilon = EPSILON_START
         self.steps = 0
+    
+    def save_model(self, path):
+        torch.save({
+            'dqn1': self.dqn1.state_dict(),
+            'dqn2': self.dqn2.state_dict(),
+            'target_dqn1': self.target_dqn1.state_dict(),
+            'target_dqn2': self.target_dqn2.state_dict(),
+            'opt1': self.optimizer1.state_dict(),
+            'opt2': self.optimizer2.state_dict()
+        }, path)
+
+    def load_model(self, path):
+        saved = torch.load(path)
+        self.dqn1.load_state_dict(saved['dqn1'])
+        self.dqn2.load_state_dict(saved['dqn2'])
+        self.target_dqn1.load_state_dict(saved['target_dqn1'])
+        self.target_dqn2.load_state_dict(saved['target_dqn2'])
+        self.optimizer1.load_state_dict(saved['opt1'])
+        self.optimizer2.load_state_dict(saved['opt2'])
 
     def select_action(self, state):
         if random.random() < self.epsilon:
