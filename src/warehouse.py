@@ -7,8 +7,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from .utils import SimulationParaters, Product
-from .actor_critic import DDPG
+from .reinforce import ReinforceAgent
 from .dqn import DQNAgent
+from .actor_critic import ActorCriticAgent
 
 def number():
     num = 0
@@ -17,14 +18,6 @@ def number():
         num = num + 1
 
 num = number()
-
-# def action_spc():
-#     while True:
-#         prod_0 = random.randint(0, 200)
-#         prod_1 = random.randint(0, 200)
-#         yield prod_0, prod_1
-
-# act = action_spc()
 
 # TODO: inventory level separated by product, so not assuming that every product occupy 1 slot: Fatto
 # TODO: s_min and s_max customizable for every product: Fatto
@@ -38,7 +31,7 @@ class Warehouse:
         initial_inventory_per_product: list[int] = [20, 20],
         inventory_check_interval: float = 24,
         s_min_max: list[tuple[int, int]] = [],
-        reinforcement_learning: None | DDPG | DQNAgent = None,
+        reinforcement_learning: None | ReinforceAgent | DQNAgent | ActorCriticAgent = None,
         eval_mode: bool = False
     ) -> None:
         """Warehouse that stores a fixed amount of products
@@ -61,7 +54,7 @@ class Warehouse:
         self.products: list[Product] = products
         self.inventory_check_interval: float = inventory_check_interval
         self.s_min_max: list[tuple[int, int]] = s_min_max
-        self.reinforcement_learning: DDPG | DQNAgent | None = reinforcement_learning
+        self.reinforcement_learning: ActorCriticAgent | ReinforceAgent | DQNAgent | None = reinforcement_learning
         self.eval_mode = eval_mode
         
         self.consecutive_stockout_days: int = 0
@@ -197,11 +190,7 @@ class Warehouse:
 
     def demand_generator(self):
         while True:
-            # TODO: inserted this in for to simulate two different arrival time for each product: Fatto
-            
-            # Old behaviour
-            # demand_inter_arrival_time = random.expovariate(lambd=self.demand_inter_arrival_mean_time)
-            
+            # TODO: inserted this in for to simulate two different arrival time for each product: Fatto            
             # For every product that warehouse handle
             for idx, product in enumerate(self.products):
                 yield from self.product_demand_generator(idx, product)
