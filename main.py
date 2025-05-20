@@ -195,7 +195,7 @@ def main_rl():
 
 
 def main_rl_test():
-    set_seed()
+    set_seed(1923674)
     
     init_inv: list[int] = [20, 20]
     in_dim: int = 6
@@ -249,13 +249,13 @@ def main_reinforce():
     in_dim: int = 6
     max_action_for_single_product: int = 25 # include the (0, 0) to (25, 25) inclusive 
     
-    # num_of_days_for_episode = 2_000
+    num_of_days_for_episode = 2_000
+    num_episodes = 1_000
+
+    # num_of_days_for_episode = 1_000
     # num_episodes = 1_000
 
-    num_of_days_for_episode = 1_000
-    num_episodes = 2_000
-
-    agent: ReinforceAgent = ReinforceAgent(in_dim, max_action_for_single_product, device, hidden_dim=512)
+    agent: ReinforceAgent = ReinforceAgent(in_dim, max_action_for_single_product, device, hidden_dim=1024)
 
     total_costs = []
     rewards = []
@@ -312,7 +312,7 @@ def main_reinforce():
         rewards.append(episode_reward)
 
         print(f"Policy Loss_fn: {agent.loss_fn_values[-1]}")
-        if (episode % 10 == 0 and episode != 0) or episode == num_episodes - 1:
+        if (episode % 20 == 0 and episode != 0) or episode == num_episodes - 1:
             agent.save_model(f'REINFORCE_{episode}.pt')
 
     # Saving to file
@@ -347,7 +347,7 @@ def main_reinforce():
     plt.show()
 
 def main_reinforce_test(model):
-    set_seed()
+    set_seed(1923674)
     
     init_inv: list[int] = [20, 20]
     in_dim: int = 6
@@ -356,7 +356,7 @@ def main_reinforce_test(model):
     num_of_days_for_episode = 365
     num_episodes = 30
     
-    agent: ReinforceAgent = ReinforceAgent(in_dim, max_action_for_single_product, device, hidden_dim=512)
+    agent: ReinforceAgent = ReinforceAgent(in_dim, max_action_for_single_product, device, hidden_dim=1024)
     agent.load_model(model)
     
     total_costs = []
@@ -387,7 +387,7 @@ def main_reinforce_test(model):
         
         total_costs.append(warehouse.total_cost)
 
-    # print(f"mean total cost {statistics.mean(total_costs)}")
+    print(f"mean total cost {statistics.mean(total_costs)}")
     return statistics.mean(total_costs)
     # plt.plot(total_costs)
     # plt.xlabel('Episode')
@@ -403,13 +403,16 @@ if __name__ == "__main__":
     # main()
     
     # main_rl()
-    # main_rl_test()
+    # 400
+    main_rl_test()
     
     # main_reinforce()
-    totals_costs = {}
-    for i in range(10, 2000, 10):
-       totals_cost = main_reinforce_test(f"REINFORCE_{i}.pt")
-       totals_costs[i] = totals_cost
-       print(f"Iteration: {i}: total-cost: {totals_costs[i]}")
-    print(min(totals_costs.items(), key= lambda x: x[1]))
+    # 320
+    main_reinforce_test("/home/rhohen/Workspace/InventorySystem/old_train/reinforce_1024_320k_mean_nopolicygammas_0.05/REINFORCE_320.pt")
+    # totals_costs = {}
+    # for i in range(20, 1000, 20):
+    #    totals_cost = main_reinforce_test(f"REINFORCE_{i}.pt")
+    #    totals_costs[i] = totals_cost
+    #    print(f"Iteration: {i}: total-cost: {totals_costs[i]}")
+    # print(min(totals_costs.items(), key= lambda x: x[1]))
     

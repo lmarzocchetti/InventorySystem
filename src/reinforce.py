@@ -21,7 +21,7 @@ class PolicyNetwork(nn.Module):
 
 class ReinforceAgent:
     def __init__(self, input_dim, action_dim, device, hidden_dim=128, 
-                 gamma=0.99, policy_lr=1e-4):
+                 gamma=0.99, policy_lr=1e-3):
         self.input_dim = input_dim
         self.action_dim = action_dim + 1
         self.output_dim = self.action_dim * self.action_dim
@@ -81,10 +81,15 @@ class ReinforceAgent:
         for log_prob, G in zip(log_probs, returns):
             policy_loss.append(-log_prob * G)
         
-        policy_loss = torch.stack(policy_loss).sum()
-        entropy_loss = -torch.stack(entropies).sum()
-        total_loss = policy_loss + 0.15 * entropy_loss
+        # policy_loss = torch.stack(policy_loss).sum()
+        # entropy_loss = -torch.stack(entropies).sum()
+        
+        policy_loss = torch.stack(policy_loss).mean()
+        entropy_loss = -torch.stack(entropies).mean()
+        
+        total_loss = policy_loss + 0.05 * entropy_loss
         self.loss_fn_values.append(total_loss.item())
+        
         # Update policy
         self.policy_optim.zero_grad()
         policy_loss.backward()
