@@ -27,7 +27,7 @@ def save_list_to_file(list_to_save, filename):
 
 def main():
     #TODO: Separare gli s_min s_max per ogni prodotto: Fatto
-    set_seed()
+    set_seed(1923674)
     params = [
         # (s_min, s_max)
         (20, 40),
@@ -47,6 +47,9 @@ def main():
     results_prod_1 = {}
     results_prod_2 = {}
     for s_min_max in params_separate:
+        
+        total_costs = {}
+        
         for _ in range(30):
             env = simpy.Environment()
             warehouse = Warehouse(
@@ -59,22 +62,30 @@ def main():
             # results.setdefault(s_min, {}).setdefault(s_max, []).append(warehouse.total_cost)
             results_prod_1.setdefault(s_min_max[0][0], {}).setdefault(s_min_max[0][1], []).append(warehouse.total_cost)
             results_prod_2.setdefault(s_min_max[1][0], {}).setdefault(s_min_max[1][1], []).append(warehouse.total_cost)
+            if s_min_max in total_costs: 
+                total_costs[s_min_max] += warehouse.total_cost
+            else:
+                total_costs[s_min_max] = warehouse.total_cost
+        
+        total_costs[s_min_max] = total_costs[s_min_max] / 30
+    
+    print(f"S_min S_max minimum: {total_costs[min(total_costs, key=lambda x: x[1])]}")
     
     for s_min, d in results_prod_1.items():
         s_maxs = list(d.keys())
         average_total_costs = [statistics.mean(l) for l in d.values()]
-        plt.plot(s_maxs, average_total_costs, label=f's_min: {s_min}')
+        plt.plot(s_maxs, average_total_costs, label=f'prod_1 s_min: {s_min}')
     
     for s_min, d in results_prod_2.items():
         s_maxs = list(d.keys())
         average_total_costs = [statistics.mean(l) for l in d.values()]
-        plt.plot(s_maxs, average_total_costs, label=f's_min: {s_min}')
-
+        plt.plot(s_maxs, average_total_costs, label=f'prod_2 s_min: {s_min}')
+    
     plt.title('Average Total Cost over s_max')
     plt.xlabel('s_max')
     plt.ylabel('Average Total Cost')
     plt.legend()
-    plt.show()
+    # plt.show()
 
 def main_rl():
     set_seed()
@@ -235,12 +246,12 @@ def main_rl_test():
         
         total_costs.append(warehouse.total_cost)
 
-    print(f"mean total cost {statistics.mean(total_costs)}")
+    print(f"DQN mean total cost {statistics.mean(total_costs)}")
     plt.plot(total_costs)
     plt.xlabel('Episode')
     plt.ylabel('Episode cost')
     plt.title('DQN Warehouse')
-    plt.show()
+    # plt.show()
 
 def main_reinforce():
     set_seed()
@@ -387,7 +398,7 @@ def main_reinforce_test(model):
         
         total_costs.append(warehouse.total_cost)
 
-    print(f"mean total cost {statistics.mean(total_costs)}")
+    print(f"Reinforce mean total cost {statistics.mean(total_costs)}")
     return statistics.mean(total_costs)
     # plt.plot(total_costs)
     # plt.xlabel('Episode')
@@ -400,7 +411,7 @@ def normalize_state(state):
     return np.array((i1/100, i2/100, s1/100, s2/100, o1/10, o2/10))
 
 if __name__ == "__main__":
-    # main()
+    main()
     
     # main_rl()
     # 400
