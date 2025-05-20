@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 from .utils import SimulationParaters, Product
 from .reinforce import ReinforceAgent
 from .dqn import DQNAgent
-from .actor_critic import ActorCriticAgent
 
 def number():
     num = 0
@@ -31,7 +30,7 @@ class Warehouse:
         initial_inventory_per_product: list[int] = [20, 20],
         inventory_check_interval: float = 24,
         s_min_max: list[tuple[int, int]] = [],
-        reinforcement_learning: None | ReinforceAgent | DQNAgent | ActorCriticAgent = None,
+        reinforcement_learning: None | ReinforceAgent | DQNAgent = None,
         eval_mode: bool = False
     ) -> None:
         """Warehouse that stores a fixed amount of products
@@ -54,7 +53,7 @@ class Warehouse:
         self.products: list[Product] = products
         self.inventory_check_interval: float = inventory_check_interval
         self.s_min_max: list[tuple[int, int]] = s_min_max
-        self.reinforcement_learning: ActorCriticAgent | ReinforceAgent | DQNAgent | None = reinforcement_learning
+        self.reinforcement_learning: ReinforceAgent | DQNAgent | None = reinforcement_learning
         self.eval_mode = eval_mode
         
         self.consecutive_stockout_days: int = 0

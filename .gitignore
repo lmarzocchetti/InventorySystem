@@ -4,7 +4,4 @@ src/__pycache__/
 model_*
 old*/
 *.pt
-loss_function_values.pkl
-episode_product.pkl
-returns.pkl
-total_costs.pkl
+*.pkl

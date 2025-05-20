@@ -13,7 +13,6 @@ import simulation_data as sim_data
 from src.warehouse import Warehouse
 from src.dqn import DQNAgent
 from src.reinforce import ReinforceAgent
-from src.actor_critic import ActorCriticAgent
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -250,10 +249,13 @@ def main_reinforce():
     in_dim: int = 6
     max_action_for_single_product: int = 25 # include the (0, 0) to (25, 25) inclusive 
     
-    num_of_days_for_episode = 2_000
-    num_episodes = 1_000
+    # num_of_days_for_episode = 2_000
+    # num_episodes = 1_000
 
-    agent: ReinforceAgent = ReinforceAgent(in_dim, max_action_for_single_product, device)
+    num_of_days_for_episode = 1_000
+    num_episodes = 2_000
+
+    agent: ReinforceAgent = ReinforceAgent(in_dim, max_action_for_single_product, device, hidden_dim=512)
 
     total_costs = []
     rewards = []
@@ -261,11 +263,13 @@ def main_reinforce():
     for episode in tqdm.tqdm(range(num_episodes)):
         state = np.array((init_inv[0], init_inv[1], 0, 0, 0, 0))
         agent.state = state
-        agent.reward = None
+        agent.reward = 0
         agent.action = None
         
         log_probs = []
         rewards = []
+        rewards_to_print = []
+        entropies = []
         
         env = simpy.Environment()
         warehouse = Warehouse(
@@ -279,10 +283,9 @@ def main_reinforce():
         episode_reward = 0
         products_per_day = []
         for _ in range(num_of_days_for_episode):
-            action_idx, log_prob = agent.select_action(state)
-            action_pair = agent.index_to_action(action_idx)
-            agent.action = action_pair
-            
+            action, _, log_prob, entropy = agent.select_action(state)
+            agent.action = action
+                        
             # Salvo inizio giorno inventario
             inventory_1 = max(0, warehouse.current_inventory_level_products[0] - warehouse.last_day_order_request[0])
             inventory_2 = max(0, warehouse.current_inventory_level_products[1] - warehouse.last_day_order_request[1])
@@ -292,41 +295,45 @@ def main_reinforce():
             env.run(env.now + 24)
             next_state, reward = agent.state, agent.reward
 
-            if reward is not None:
-                episode_reward += reward
-                rewards.append(reward)
-                log_probs.append(log_prob)
+            # if reward is not None:
+            episode_reward += reward
+            rewards.append(torch.tensor(reward, dtype=torch.float).to(device))
+            rewards_to_print.append(reward)
+            log_probs.append(log_prob)
+            entropies.append(entropy)      
+            
             state = next_state
 
-        agent.train_step(rewards, log_probs)
+        #print(f"ENTROPY MEAN: {torch.stack(entropies).mean().item()}")
+        agent.train_step(rewards, log_probs, entropies)
         
         episode_product.append(statistics.mean(products_per_day))
         total_costs.append(warehouse.total_cost)
         rewards.append(episode_reward)
 
-        print(f"LOSS FN: {agent.loss_fn_values[-1]}")
-        if (episode % 100 == 0 and episode != 0) or episode == num_episodes - 1:
+        print(f"Policy Loss_fn: {agent.loss_fn_values[-1]}")
+        if (episode % 10 == 0 and episode != 0) or episode == num_episodes - 1:
             agent.save_model(f'REINFORCE_{episode}.pt')
 
     # Saving to file
     save_list_to_file(episode_product, "REINFORCE_episode_product.pkl")
     save_list_to_file(total_costs, "REINFORCE_total_costs.pkl")
     save_list_to_file(agent.loss_fn_values, "REINFORCE_loss_function_values.pkl")
-    save_list_to_file(rewards, "REINFORCE_rewards.pkl")
+    save_list_to_file(rewards_to_print, "REINFORCE_rewards.pkl")
 
     # Plot
-    _, ((ax_returns, ax_loss_fn), (ax_total_costs, ax_episode_products)) = plt.subplots(2, 2, figsize=(8, 8))
+    _, ((ax_returns, ax_total_costs, ax_episode_products), (ax_loss_fn_actor, _, _)) = plt.subplots(2, 3, figsize=(8, 12))
     
-    ax_returns.plot(rewards)
+    ax_returns.plot(rewards_to_print)
     ax_returns.set_xlabel('Episode')
     ax_returns.set_ylabel('Reward')
-    ax_returns.set_title('Reinforce Reward')
+    ax_returns.set_title('Actor Critic Reward')
     
-    ax_loss_fn.plot(agent.loss_fn_values)
-    ax_loss_fn.set_xlabel('Episode')
-    ax_loss_fn.set_ylabel('Loss Values')
-    ax_loss_fn.set_title('Reinforce Loss function')
-    
+    ax_loss_fn_actor.plot(agent.loss_fn_values)
+    ax_loss_fn_actor.set_xlabel('Episode')
+    ax_loss_fn_actor.set_ylabel('Loss Values Policy')
+    ax_loss_fn_actor.set_title('Policy Loss function')
+        
     ax_total_costs.plot(total_costs)
     ax_total_costs.set_xlabel('Episode')
     ax_total_costs.set_ylabel('Total Cost')
@@ -339,106 +346,70 @@ def main_reinforce():
     
     plt.show()
 
-def main_actor_critic():
+def main_reinforce_test(model):
     set_seed()
     
     init_inv: list[int] = [20, 20]
     in_dim: int = 6
     max_action_for_single_product: int = 25 # include the (0, 0) to (25, 25) inclusive 
     
-    num_of_days_for_episode = 2_000
-    num_episodes = 1_000
-
-    agent: ActorCriticAgent = ActorCriticAgent(in_dim, max_action_for_single_product, device)
-
+    num_of_days_for_episode = 365
+    num_episodes = 30
+    
+    agent: ReinforceAgent = ReinforceAgent(in_dim, max_action_for_single_product, device, hidden_dim=512)
+    agent.load_model(model)
+    
     total_costs = []
-    rewards = []
-    episode_product = []
-    for episode in tqdm.tqdm(range(num_episodes)):
+    for _ in tqdm.tqdm(range(num_episodes)):
         state = np.array((init_inv[0], init_inv[1], 0, 0, 0, 0))
         agent.state = state
         agent.reward = None
         agent.action = None
-        
-        log_probs = []
-        rewards = []
-        
+
         env = simpy.Environment()
         warehouse = Warehouse(
             env,
             sim_data.simulation_parameters,
             initial_inventory_per_product=init_inv,
             products=[sim_data.first_product, sim_data.second_product],
-            reinforcement_learning=agent
+            reinforcement_learning=agent,
+            eval_mode = True
         )
         
-        episode_reward = 0
-        products_per_day = []
-        for _ in range(num_of_days_for_episode):
-            # action, log_prob = agent.select_action(state)
-            action_idx, action = agent.select_action(state)
+        for t in range(num_of_days_for_episode):
+            action, _, _, _ = agent.select_action(state)
             agent.action = action
             
-            # Salvo inizio giorno inventario
-            inventory_1 = max(0, warehouse.current_inventory_level_products[0] - warehouse.last_day_order_request[0])
-            inventory_2 = max(0, warehouse.current_inventory_level_products[1] - warehouse.last_day_order_request[1])
-            agent.last_day_inventory = inventory_1 + inventory_2
-            products_per_day.append(inventory_1 + inventory_2)
-            
             env.run(env.now + 24)
-            next_state, reward = agent.state, agent.reward
             
-            if reward is not None:
-                # agent.train_step(state, next_state, reward, log_prob)
-                agent.train_step(action_idx, state, next_state, reward)
-                episode_reward += reward
-                rewards.append(reward)
-                # log_probs.append(log_prob)
+            next_state = agent.state
             state = next_state
         
-        episode_product.append(statistics.mean(products_per_day))
         total_costs.append(warehouse.total_cost)
-        rewards.append(episode_reward)
 
-        print(f"Actor Loss_fn: {agent.loss_fn_actor_values[-1]}---Critic Loss_fn: {agent.loss_fn_critic_values[-1]}")
-        if (episode % 100 == 0 and episode != 0) or episode == num_episodes - 1:
-            agent.save_model(f'ACTOR_CRITIC_{episode}.pt')
+    # print(f"mean total cost {statistics.mean(total_costs)}")
+    return statistics.mean(total_costs)
+    # plt.plot(total_costs)
+    # plt.xlabel('Episode')
+    # plt.ylabel('Episode cost')
+    # plt.title('DQN Warehouse')
+    # plt.show()
 
-    # Saving to file
-    save_list_to_file(episode_product, "ACTOR_CRITIC_episode_product.pkl")
-    save_list_to_file(total_costs, "ACTOR_CRITIC_total_costs.pkl")
-    save_list_to_file(agent.loss_fn_values, "ACTOR_CRITIC_loss_function_values.pkl")
-    save_list_to_file(rewards, "ACTOR_CRITIC_rewards.pkl")
-
-    # Plot
-    _, ((ax_returns, ax_loss_fn), (ax_total_costs, ax_episode_products)) = plt.subplots(2, 2, figsize=(8, 8))
-    
-    ax_returns.plot(rewards)
-    ax_returns.set_xlabel('Episode')
-    ax_returns.set_ylabel('Reward')
-    ax_returns.set_title('Actor Critic Reward')
-    
-    ax_loss_fn.plot(agent.loss_fn_values)
-    ax_loss_fn.set_xlabel('Episode')
-    ax_loss_fn.set_ylabel('Loss Values')
-    ax_loss_fn.set_title('Actor Critic Loss function')
-    
-    ax_total_costs.plot(total_costs)
-    ax_total_costs.set_xlabel('Episode')
-    ax_total_costs.set_ylabel('Total Cost')
-    ax_total_costs.set_title('Actor Critic Total Costs')
-    
-    ax_episode_products.plot(episode_product)
-    ax_episode_products.set_xlabel('Episode')
-    ax_episode_products.set_ylabel('Inventory')
-    ax_episode_products.set_title('Actor Critic total products')
-    
-    plt.show()
+def normalize_state(state):
+    i1, i2, s1, s2, o1, o2 = state
+    return np.array((i1/100, i2/100, s1/100, s2/100, o1/10, o2/10))
 
 if __name__ == "__main__":
     # main()
+    
     # main_rl()
     # main_rl_test()
+    
     # main_reinforce()
-    main_actor_critic()
+    totals_costs = {}
+    for i in range(10, 2000, 10):
+       totals_cost = main_reinforce_test(f"REINFORCE_{i}.pt")
+       totals_costs[i] = totals_cost
+       print(f"Iteration: {i}: total-cost: {totals_costs[i]}")
+    print(min(totals_costs.items(), key= lambda x: x[1]))
     

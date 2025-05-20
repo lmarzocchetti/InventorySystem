@@ -43,7 +43,7 @@ class DQN(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-# Replay Buffer
+
 class ReplayBuffer:
     def __init__(self, capacity):
         self.buffer = deque(maxlen=capacity)
