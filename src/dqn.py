@@ -15,7 +15,7 @@ def epsilon_decay_exp(step, epsilon_start=1.0, epsilon_end=0.01, total_steps=10_
 
 EPSILON_START = 1.0
 EPSILON_END = 0.01
-# TODO: non usare il decay ma moltiplicare l'epsilon corrente per un valore cosi che al massimo ti time-step converga a 0.01: FATTO(?)
+# TODO: non usare il decay ma moltiplicare l'epsilon corrente per un valore cosi che al massimo ti time-step converga a 0.01: FATTO
 # EPSILON_DECAY = calculate_epsilon_decay_linear(EPSILON_START, EPSILON_END)
 # EPSILON_DECAY = 0.99
 

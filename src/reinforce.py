@@ -12,8 +12,6 @@ class PolicyNetwork(nn.Module):
         self.fc3 = nn.Linear(hidden_dim, action_dim)
         
     def forward(self, x):
-        # x = F.relu(self.fc1(x))
-        # x = F.relu(self.fc2(x))
         x = F.tanh(self.fc1(x))
         x = F.tanh(self.fc2(x))
         x = self.fc3(x)
@@ -71,19 +69,11 @@ class ReinforceAgent:
         # Normalize returns
         returns = torch.tensor(returns)
         # returns = (returns - returns.mean()) / (returns.std() + 1e-8)
-        
-        # Calculate policy loss
-        # policy_loss = []
-        # for log_prob, G, gamma in zip(log_probs, returns, gammas):
-        #     policy_loss.append(-log_prob * G * gamma)
-        
+                
         policy_loss = []
         for log_prob, G in zip(log_probs, returns):
             policy_loss.append(-log_prob * G)
-        
-        # policy_loss = torch.stack(policy_loss).sum()
-        # entropy_loss = -torch.stack(entropies).sum()
-        
+                
         policy_loss = torch.stack(policy_loss).mean()
         entropy_loss = -torch.stack(entropies).mean()
         
