@@ -1,4 +1,6 @@
-# python=3.12.8
+# python=3.13.3
+
 simpy==4.1.1
-matplotlib==3.10.0
-torch==2.6.0
+matplotlib==3.10.3
+torch==2.7.0
+tqdm==4.67.1

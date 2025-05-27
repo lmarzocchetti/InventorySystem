@@ -33,17 +33,9 @@ class Warehouse:
         reinforcement_learning: None | ReinforceAgent | DQNAgent = None,
         eval_mode: bool = False
     ) -> None:
-        """Warehouse that stores a fixed amount of products
-
-        Args:
-            env (simpy.Environment): Simpy environment
-            parameters (SimulationParaters): Simulation Parameters (see the class)
-            products (list[Product]): List of Products that are stored in the warehouse
-            total_inventory_level (float, optional): Amount of total products that can be stored in the warehouse(assuming all products occupy the same space). Defaults to 60.
-            inventory_check_interval (float, optional): Amount of time that we check the inventory and reorder products. Defaults to 1.
-            s_max (float, optional): Defaults to 40.
-            s_min (float, optional): Defaults to 20.
-        """ 
+        """
+        Warehouse that stores a fixed amount of products
+        """
         self.env: simpy.Environment = env
         self.demand_inter_arrival_mean_time: float = parameters.demand_inter_arrival_mean_time
         self.order_setup_cost: float = parameters.order_setup_cost
